@@ -491,7 +491,7 @@ You will need to add a helper sensor of the integral type for each power flow na
 Use the corresponding power sensor (e.g. for Energy To Battery, use Battery Import). Use Left Riemann Sum calculation, a precision of 2, and a sub-interval of 1 minute. Once you have all 6 Integral sensors defined, you can add this to the energy dashboard.
 
 
-## Advanced scheduling
+## Advanced scheduling with anti-EV "integration"
 
 You should already know the app provides the following modes:
 - Regular Mode
@@ -505,9 +505,324 @@ Battery Energy Management allows you to set a custom schedule to buy, use, and s
 - 11:00 - 13:59: Free c/kwh
 - 14:00 - 23:59: Expensive c/kwh
 
+I also have an EV and although will usually charge during the Free period, if I need a top-up for tomorrow morning, I will charge in the cheap period starting from 00:00. I don't want the battery to dump it's energy into the car - it's inefficient. So I also want it to detect when my EVSE starts to charge the car, and to shut off power delivery until it's finished. My EVSE is a Tesla PW3 and I already have it integrated in my HA.
+
 I therefore set my mode to "Battery Energy Management" and a custom schedule to "buy" power from 11am until 2pm, with the intent to use it through the day and night. Depending on many factors, I will run out of power before the next free period. Therefore I want to have the option of ensuring that come 6am, my battery is always at a fixed SoC so it has enough energy to run through the morning peak. My default percentage is 30%, but I increase that to 40% if it's raining, or 50% if it's cold and I have my heater set to run in the early AM. So how to interact with this capability?
 
 ### Step 1 - Understanding the custom schedule format
 Configure the approximate schedule in your BEM mode. 
 
+Then use the HA shell to run the command from your HA root directory:
+```bash
+[core-ssh homeassistant]$ battery_api/read_custom_schedule.sh
+{json stuff returned here}
+[core-ssh homeassistant]$
+```
+Grab the JSON output and put it in a json pretty formatter (can use online if you like - I use [JSON Formatter](https://jsonformatter.org/json-pretty-print)). It will resemble this:
+```json
+{
+  "updateTime": xxxxxxx,
+  "chargeTimeQuantum": [
+    {
+      "end": 839,
+      "sort": 0,
+      "start": 660
+    },
+    {
+      "end": 359,
+      "sort": 1,
+      "start": 330
+    }
+  ],
+  "deviceId": "INVERTER_ID",
+  "chargeCutOff": 100,
+  "dischargeCutOff": 0,
+  "dischargeTimeQuantum": [],
+  "releaseSwitch": 1,
+  "createTime": xxxxxxx,
+  "dischargeSwitch": 0,
+  "releaseTimeQuantum": [
+    {
+      "end": 330,
+      "sort": 0,
+      "start": 0
+    },
+    {
+      "end": 659,
+      "sort": 1,
+      "start": 360
+    },
+    {
+      "end": 1439,
+      "sort": 2,
+      "start": 840
+    }
+  ],
+  "id": "xxxxxxxx",
+  "releaseCutOff": 5,
+  "chargeSwitch": 1
+}
+```
+The Charge Time Quantum is what I want to modify. You can see there's one with Sort:1 that starts at 330 and ends at 359. This number is the number of minutes past midnight - i.e. 05:30 - 05:59. So by modifying this start value we can adjust when the battery will start charging in the off-peak power rates. Also by removing this section of json, we can prevent it from charging in the morning (e.g. if the battery has more than enough charge). Also to stop it from discharging into my EV, I also care about the releaseTimeQuantum where the Sort:0 starts at 0 (and can adjust this to start later). Otherwise releaseSwitch can also be changed to 0 to prevent it from discharging. Many ways to skin the cat. Discharge Time Quantum is for selling energy to the grid, which is something I don't do, but you can consider it. UpdateTime and createTime are just unix time formats. 
 
+Save a copy of this file in the battery_api folder with the name **schedule_custom_charge.txt**. Also copy the file to **schedule_no_charge.txt** in the battery folder and remove the chargeTimeQuantum related to the early morning charge, like this:
+```json
+{
+  "updateTime": xxxxxxx,
+  "chargeTimeQuantum": [
+    {
+      "end": 839,
+      "sort": 0,
+      "start": 660
+    }
+  ],
+  "deviceId": "INVERTER_ID",
+  "chargeCutOff": 100,
+  "dischargeCutOff": 0,
+  "dischargeTimeQuantum": [],
+  "releaseSwitch": 1,
+  "createTime": xxxxxxx,
+  "dischargeSwitch": 0,
+  "releaseTimeQuantum": [
+    {
+      "end": 330,
+      "sort": 0,
+      "start": 0
+    },
+    {
+      "end": 659,
+      "sort": 1,
+      "start": 360
+    },
+    {
+      "end": 1439,
+      "sort": 2,
+      "start": 840
+    }
+  ],
+  "id": "xxxxxxxx",
+  "releaseCutOff": 5,
+  "chargeSwitch": 1
+}
+```
+n.b. Please use files generated from your own system. 
+
+### Step 2 - Creating a custom scheduler script
+
+My intention is to take 2 arguments from HA - if / when the battery should start charging in the morning, and what time the battery should start to discharge after midnight. If the first argument is 0, then there should be no pre-charging in the morning. 
+
+Create a script called **set_custom_schedule_variable_charge.sh** in the battery_api directory
+```bash
+#!/bin/bash
+
+#echo $1 > args.txt
+
+# Check arguments
+if [ "$#" -ne 2 ] ; then
+  echo "error: Needs 2 arg"
+  exit 1
+fi
+
+# Check it's a number
+re='[0-9]+$'
+if ! [[ $1 =~ $re ]] ; then
+  echo "Error: not a number"
+  exit 1
+fi
+re='[0-9]+$'
+if ! [[ $2 =~ $re ]] ; then
+  echo "Error: not a number"
+  exit 1
+fi
+
+# Check it's within 0 - 358
+if [ "$1" -ge 358 ] ; then
+  echo "Error: Outside 0-358"
+  exit 1 
+fi
+if [ "$1" -lt 0 ] ; then
+  echo "Error: outside 0-358"
+  exit 1
+fi
+if [ "$2" -ge 358 ] ; then
+  echo "Error: Outside 0-358"
+  exit 1 
+fi
+if [ "$2" -lt 0 ] ; then
+  echo "Error: outside 0-358"
+  exit 1
+fi
+
+ACCESS_TOKEN=`curl --silent --header "Content-Type: application/json" --request POST --data "@battery_api/login.txt" "http://esybackend.esysunhome.com:7073/login?grant_type=app" | jq -r '.data.access_token'`
+
+if [ "$1" -eq 0 ] ; then
+  REQUEST_JSON=`cat battery_api/schedule_no_charge.txt | tr -d '\n ' | sed -e s/START_TIME/$1/g -e s/END_TIME/$2/g -e s/\"/\\\\\"/g -e s/\:/\:\ /g`
+else
+  REQUEST_JSON=`cat battery_api/schedule_custom_charge.txt | tr -d '\n ' | sed -e s/START_TIME/$1/g -e s/END_TIME/$2/g -e s/\"/\\\\\"/g -e s/\:/\:\ /g`
+fi
+
+curl --silent --header "Content-Type: application/json" --header "Authorization: bearer $ACCESS_TOKEN" --request POST --data "$REQUEST_JSON" "http://esybackend.esysunhome.com:7073/api/lsydevicechargedischarge/save"
+```
+Make this script executable (chmod 755).
+
+
+The first part of the script is sense checking the input arguments. \
+The second part of the script is to get the auth token for API access \
+The third part is to work out what json should be delivered to the API request. This referrences the 2 files you created earlier **schedule_no_charge.txt** and **schedule_custom_charge.txt** and performs a few substitutions to get a pretty json template file ready for a web api request. \
+The last part is to submit the request.
+
+I am using 2 arguments: **START_TIME** (the time to start pre-charging) and **END_TIME** (the time the EV charge ends).
+
+### Step 3 - Creating the json templates
+
+All we need to do is to set up the relevant place-holders in the 2 schedule files we created earlier. 
+
+**schedule_custom_charge.txt**
+```json
+{
+  "updateTime": xxxxx,
+  "chargeTimeQuantum": [
+    {
+      "end": 839,
+      "sort": 0,
+      "start": 660
+    },
+    {
+      "end": 359,
+      "sort": 1,
+      "start": START_TIME
+    }
+  ],
+  "deviceId": "xxxxxx",
+  "chargeCutOff": 100,
+  "dischargeCutOff": 0,
+  "dischargeTimeQuantum": [],
+  "releaseSwitch": 1,
+  "createTime": xxxxx,
+  "dischargeSwitch": 0,
+  "releaseTimeQuantum": [
+    {
+      "end": START_TIME,
+      "sort": 0,
+      "start": END_TIME
+    },
+    {
+      "end": 659,
+      "sort": 1,
+      "start": 360
+    },
+    {
+      "end": 1439,
+      "sort": 2,
+      "start": 840
+    }
+  ],
+  "id": "xxxxxx",
+  "releaseCutOff": 5,
+  "chargeSwitch": 1
+}
+```
+In the early morning chargeTimeQuantum, change the start from a numeric value to the placeholder START_TIME \
+In the early morning releaseTimeQuantum, change the start from a numeric (0) to END_TIME and end from a numeric value to START_TIME  (yeah I know...).... The release will start when the EV charge ends, and it will end releasing when it's time to start charging. 
+
+If you don't have an EV that you need to worry about, then ignore the END_TIME bit.
+
+**schedule_no_charge.txt**
+```json
+{
+  "updateTime": xxxxx,
+  "chargeTimeQuantum": [
+    {
+      "end": 839,
+      "sort": 0,
+      "start": 660
+    }
+  ],
+  "deviceId": "xxxxx",
+  "chargeCutOff": 100,
+  "dischargeCutOff": 0,
+  "dischargeTimeQuantum": [],
+  "releaseSwitch": 1,
+  "createTime": xxxxx,
+  "dischargeSwitch": 0,
+  "releaseTimeQuantum": [
+    {
+      "end": 659,
+      "sort": 0,
+      "start": END_TIME
+    },
+    {
+      "end": 1439,
+      "sort": 1,
+      "start": 840
+    }
+  ],
+  "id": "xxxxx",
+  "releaseCutOff": 5,
+  "chargeSwitch": 1
+}
+```
+This file has no early morning chargeTimeQuantum, and because I want the EV integration, I update the morning releaseTimeQuantum with start: END_TIME so that it only starts to release when the EV ends it's charging session.
+
+**Please note** Use files generated from your own system 
+
+### Step 4 - Testing the script.
+From the homeassistant root folder, run the command battery_api/set_custom_schedule_variable_charge.sh 0 0 to test that the early morning charge is removed from your battery's app schedule
+```bash
+[core-ssh homeassistant]$ battery_api/set_custom_schedule_variable_charge.sh 0 0
+{"code":0,"msg":"Successful","data":true}
+[core-ssh homeassistant]$
+```
+It will give you a message that the API call was successful if it worked, or it will give some messages in Chinese if it didn't. You can use Google translate to try and figure out what the message means (it will also say "Server Upgrading" in Chinese if you stuffed up the JSON payload).
+Then on your app, confirm that the early morning charge has been removed from the Battery Energy Management schedule.
+
+If successful, run the command battery_api/set_custom_schedule_variable_charge.sh 120 0 to test that the early morning charge is starts at 2am
+```bash
+[core-ssh homeassistant]$ battery_api/set_custom_schedule_variable_charge.sh 120 0
+{"code":0,"msg":"Successful","data":true}
+[core-ssh homeassistant]$
+```
+It will give you a message that the API call was successful if it worked, or it will give some messages in Chinese if it didn't. You can use Google translate to try and figure out what the message means (it will also say "Server Upgrading" in Chinese if you stuffed up the JSON payload).
+Then on your app, confirm that the early morning charge will commence from 2am in the Battery Energy Management schedule.
+
+If this also passes the test, you can proceed.
+
+### Step 5 - configuration.yaml
+Add this shell command to your shell_command: part of your configuration.yaml file
+```json
+battery_set_custom_schedule_variable_charge: bash battery_api/set_custom_schedule_variable_charge.sh {{ states('sensor.calculated_charge_minutes') }} {{ states('sensor.calculated_start_discharge_minutes') }}
+```
+Restart HA (reloading your config will not work).
+
+### Step 6 - HA helper entities
+We need to build several helper entities now. 
+
+**calculated_charge_minutes**
+Type: Template sensor
+Template text:
+```django
+{% set target_pct = 30 %}
+
+{% if( states('sensor.weather_forecast_here_temp_max_0')|int >= 38 ) %}
+    {% set target_pct = 75 %}
+{% elif states('sensor.solcast_pv_forecast_forecast_today')|int < 7 %}
+    {% set target_pct = 50 %}
+{% elif states('sensor.solcast_pv_forecast_forecast_today')|int < 15 %}
+    {% set target_pct = 40 %}
+{% endif %}
+
+{% if( states('input_boolean.aircon_timer') == 'on' ) %}
+{% set target_pct = target_pct + 10 %}
+{% endif %}
+
+
+{% set current_pct = states('sensor.state_of_charge')|int %}
+{% set mins_per_pct = 3.0 %}
+{% set end_time = 359 %}
+{% if( current_pct < target_pct ) %}
+    {% set charge_mins = ((target_pct - current_pct) * mins_per_pct + 0.5)|int %}
+    {{ end_time - charge_mins }}
+{% else %}
+    0
+{% endif %}
+```
