@@ -90,16 +90,16 @@ All the MQTT comms we care about have the inverter ID as part of the topic. The 
 ## MQTT Plug-in configuration
 If you are using the MQTT plugin for other things, you may need to set up an intermediate broker.
 
-The following configuration is required for the MQTT Plugin:
-Broker: 99.83..178.210
-Port: 1883
-Username: anything
-Password: anything
-Client ID: leave blank
-Use a certificate: Off
-Ignore Broker Certificate Validation: On
-MQTT Protocol: 3.1.1
-MQTT Transport: TCP
+The following configuration is required for the MQTT Plugin:\
+**Broker:** 99.83.178.210\
+**Port:** 1883\
+**Username:** anything\
+**Password:** anything\
+**Client ID:** leave blank\
+**Use a certificate:** Off\
+**Ignore Broker Certificate Validation:** On\
+**MQTT Protocol:** 3.1.1\
+**MQTT Transport:** TCP
 
 To test, you can use the following topic to listen to: /APP/Your Inverter ID here/NEWS
 
