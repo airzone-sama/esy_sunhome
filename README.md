@@ -1,10 +1,10 @@
 # ESY Sunhome HA Integration
 
-This is set up for a Linux based appliance install of HA. 
+This is set up for a Linux based appliance install of HA. Only tested on an ESY Sunhome HM6.
 
 ## Pre-reqs
 
-You need some basic Linux skills. You need the MQTT Integration installed. It is ideal to have a file editor and shell as part of your HA integration, but not necessary.
+You need some basic Linux skills and be reasonably OK at customising HA. You need the MQTT Integration installed. It is ideal to have a file editor and shell as part of your HA integration, but not necessary.
 
 I'm sure there are better ways to do this, but I did the minimal amount of effort to get my scenario to work.
 
