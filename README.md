@@ -505,7 +505,7 @@ Battery Energy Management allows you to set a custom schedule to buy, use, and s
 - 11:00 - 13:59: Free c/kwh
 - 14:00 - 23:59: Expensive c/kwh
 
-I also have an EV and although will usually charge during the Free period, if I need a top-up for tomorrow morning, I will charge in the cheap period starting from 00:00. I don't want the battery to dump it's energy into the car - it's inefficient. So I also want it to detect when my EVSE starts to charge the car, and to shut off power delivery until it's finished. My EVSE is a Tesla PW3 and I already have it integrated in my HA.
+I also have an EV and although will usually charge during the Free period, if I need a top-up for tomorrow morning, I will charge in the cheap period starting from 00:00. I don't want the battery to dump it's energy into the car - it's inefficient. So I also want it to detect when my EVSE starts to charge the car, and to shut off power delivery until it's finished. My EVSE is a Tesla Wall Connector G3 and I already have it integrated in my HA.
 
 I therefore set my mode to "Battery Energy Management" and a custom schedule to "buy" power from 11am until 2pm, with the intent to use it through the day and night. Depending on many factors, I will run out of power before the next free period. Therefore I want to have the option of ensuring that come 6am, my battery is always at a fixed SoC so it has enough energy to run through the morning peak. My default percentage is 30%, but I increase that to 40% if it's raining, or 50% if it's cold and I have my heater set to run in the early AM. So how to interact with this capability?
 
@@ -797,7 +797,7 @@ Restart HA (reloading your config will not work).
 ### Step 6 - HA helper entities
 We need to build several helper entities now. 
 
-**calculated_charge_minutes**
+**calculated_charge_minutes**\
 Type: Template sensor
 Template text:
 ```django
@@ -826,3 +826,100 @@ Template text:
     0
 {% endif %}
 ```
+- My default target is 30%
+- If my local weather forecast is going to be over 38 degrees C (i.e. hot), I don't really want to charge during the day, so I will charge to 75%. It'll stop the wires from melting.
+- If the PV Solar forecast will be less than 7kwh, then it's probably going to be heavy rain, so charge to 50%
+- If the PV Solar forecast will be less than 15kwh, then it's probably going to be patchy medium rain, so charge to 40%
+- I have another button for my aircon to run in the early morning to warm the place up. It will need extra power in the morning, so add 10% if this is set up. 
+
+Once you have your desired SoC worked out, we need to work out what the current delta is between out current SoC and our desired SoC. e.g. if current SoC is 20% and desired is 30%, then we have a 10% shortfall. Based on experience, the ESY battery will charge at 3% per minute. So it's easy to work out the number of minutes required to charge. 
+
+Since my pre-charge time will end at 5:59am, this works out to 359 minutes past midnight. Therefore do some basic maths to figure out when to start charging. Return this if the current SoC is lower than the target SoC, otherwise return 0 to indicate that no pre-charging is necessary.
+
+**calculated_start_discharge_minutes**\
+Type: template sensor
+Template text:
+```django
+{% set is_car_charging = (states('sensor.tesla_wall_connector_status') == 'charging') or (states('sensor.tesla_wall_connector_status') == 'charging_reduced') %}
+{% if is_car_charging %}
+  {% if ( now().hour >= 0 and ((now().hour == 5 and now().minute <= 30) or now().hour < 5 ) ) %}
+    {% set start_battery_discharge = (now().hour * 60) + now().minute + 15 %}
+    {% set calculated_charge_minutes = states('sensor.calculated_charge_minutes') | int %}
+    {% if ((start_battery_discharge + 5) >= calculated_charge_minutes) and (calculated_charge_minutes > 0) %}
+      {% set start_battery_discharge = calculated_charge_minutes - 5 %}
+    {% endif %}
+    {% if start_battery_discharge < 0 %}
+      {% set start_battery_discharge = 0 %}
+    {% endif %}
+  {% else %}
+    {% set start_battery_discharge = 0 %}
+  {% endif %}
+{% else %}
+  {% set start_battery_discharge = 0 %}
+{% endif %}
+{{ start_battery_discharge }}
+```
+This works with a Tesla Wall Connector G3, but can be adapted to anything really.
+
+This logic will look to see if it's charging and prompt the battery to only start discharging in now + 15 minutes, provided that is before 5:30am. However if a pre-charge is going to occur within the next 5 minutes, then allow it to turn back on as normal.
+
+If you don't have an EV, you can just return 0.
+
+### Step 7 - Automation schedule
+Add an automation with the following properties:
+
+When: Triggers every 5 minutes of every hour.
+
+And if: If the time is after 12:00am and before 5:45am
+
+Then do: Perform action 'shell_command.battery_set_custom_schedule_variable_charge'
+
+Turn on the automation. Running it manually during the day probably isn't useful, but you can see how it goes for you.
+
+## Time to Empty
+It's useful to know how long it's likely going to be until you run out of juice. Add the following helper (you need the helpers above as dependancies)
+
+**Time to Empty**\
+Type: template sensor
+Template text:
+```django
+{% set current_pct = states('sensor.state_of_charge')|int %}
+{% set total_wh = 20500 * 0.95 %}
+{% set current_wh = (total_wh * current_pct / 100)|int %}
+{% set current_power = states('sensor.home_battery_export_rolling_average')|int %}
+{% set hours_to_empty = current_wh / current_power %}
+{% set mins_to_empty = (hours_to_empty * 60)|int %}
+{% if ( (current_power == 0) or (states('sensor.battery_status') in ["0","1"]) ) %}
+  {% if ( now().hour >= 0 and now().hour < 6 ) %}
+    {% set charge_mins = states('sensor.calculated_charge_minutes') %}
+    {% set discharge_mins = states('sensor.calculated_start_discharge_minutes') %}
+    {% if discharge_mins == 0 %}
+      {% set start_hour = (charge_mins|int / 60)|int %}
+      {% set start_min = (charge_mins|int) - ( start_hour * 60 ) %}
+      Charge starting at {{ '{:02}:{:02}'.format(start_hour, start_min) }}
+    {% else %}
+      {% set start_hour = (discharge_mins|int / 60)|int %}
+      {% set start_min = (discharge_mins|int) - ( start_hour * 60 ) %}
+      Suspended Until {{ '{:02}:{:02}'.format(start_hour, start_min) }}
+    {% endif %}      
+  {% else %}
+    Charging or Idle
+  {% endif %}
+{% elif mins_to_empty > 60 %}
+  {{ hours_to_empty|int }} hrs {{ mins_to_empty - (hours_to_empty|int * 60) }} mins
+{% else %}
+  {{ mins_to_empty }} mins
+{% endif %}
+```
+This will return a nice text message.
+
+## Example screen shots
+
+### Main console
+![Screen shot 1](/esy_ha_integration_1.png)
+
+### Stats display
+![Screen shot 2](/esy_ha_integration_2.png)
+
+### Energy console
+![Screen shot 3](/esy_ha_integration_3.png)
