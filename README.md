@@ -510,7 +510,7 @@ I also have an EV and although will usually charge during the Free period, if I 
 I therefore set my mode to "Battery Energy Management" and a custom schedule to "buy" power from 11am until 2pm, with the intent to use it through the day and night. Depending on many factors, I will run out of power before the next free period. Therefore I want to have the option of ensuring that come 6am, my battery is always at a fixed SoC so it has enough energy to run through the morning peak. My default percentage is 30%, but I increase that to 40% if it's raining, or 50% if it's cold and I have my heater set to run in the early AM. So how to interact with this capability?
 
 ### Step 1 - Understanding the custom schedule format
-Configure the approximate schedule in your BEM mode. 
+Configure the approximate schedule in the BEM mode part of your phone app. 
 
 Then use the HA shell to run the command from your HA root directory:
 ```bash
@@ -605,7 +605,7 @@ Save a copy of this file in the battery_api folder with the name **schedule_cust
   "chargeSwitch": 1
 }
 ```
-n.b. Please use files generated from your own system. 
+n.b. Please use files generated from your own system. The deviceID, id, createTime, and updateTime are unique to you.
 
 ### Step 2 - Creating a custom scheduler script
 
