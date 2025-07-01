@@ -913,6 +913,32 @@ Template text:
 ```
 This will return a nice text message.
 
+## Other info
+
+This is just some other information that I gleaned from the API that you can use for your own purposes..
+
+Set to "Normal" mode
+```bash
+curl --header "Content-Type: application/json" --header "Authorization: bearer AUTH_TOKEN" --request POST --data "{\"code\":\"1\",\"deviceId\":\"INVERTER_ID\"}" http://esybackend.esysunhome.com:7073/api/lsypattern/switch
+Returns
+{"code":0,"msg":"Successful","data":true}
+```
+
+Set to "Charge and don't use"
+```bash
+curl --header "Content-Type: application/json" --header "Authorization: bearer AUTH_TOKEN" --request POST --data "{\"code\":\"5\",\"deviceId\":\"INVERTER_ID\"}" http://esybackend.esysunhome.com:7073/api/lsypattern/switch
+Returns
+{"code":0,"msg":"Successful","data":true}
+```
+
+This seems to switch between the different modes. \
+1 = Normal\
+2 = ??\
+3 = ??\
+4 = ??\
+5 = Custom Schedule\
+I expect 2, 3, 4 will include Emergency Mode and Sell Mode. 
+
 ## Example screen shots
 
 ### Main console
