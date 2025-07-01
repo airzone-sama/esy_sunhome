@@ -924,7 +924,7 @@ Returns
 {"code":0,"msg":"Successful","data":true}
 ```
 
-Set to "Charge and don't use"
+Set to "Battery Energy Management" mode
 ```bash
 curl --header "Content-Type: application/json" --header "Authorization: bearer AUTH_TOKEN" --request POST --data "{\"code\":\"5\",\"deviceId\":\"INVERTER_ID\"}" http://esybackend.esysunhome.com:7073/api/lsypattern/switch
 Returns
@@ -936,7 +936,7 @@ This seems to switch between the different modes. \
 2 = ??\
 3 = ??\
 4 = ??\
-5 = Custom Schedule\
+5 = Battery Energy Management\
 I expect 2, 3, 4 will include Emergency Mode and Sell Mode. 
 
 ## Example screen shots
