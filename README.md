@@ -949,3 +949,19 @@ I expect 2, 3, 4 will include Emergency Mode and Sell Mode.
 
 ### Energy console
 ![Screen shot 3](/esy_ha_integration_3.png)
+
+## MQTT Additional info
+
+Messages come in with a msgType, valType and msgOperation. Collectively this will dictate what this MQTT message communicates. It's useful to know that the MQTT heartbeat script causes a stream of msgType = 0; valType = 0 messages. The other types seem to broadcast at random intervals. 
+
+### msgType = 0 and valType = 0 
+This is the regular status information that you would see in the app - it shows SoC, power flow, inverter mode, etc. 
+
+### msgType = 0 and valType = 7 
+This shows detailed runtime operation information, including inverter temperature, AC phase voltage, current, grid frequency, etc
+
+### msgType = 0 and valType = 8
+This shows what seems to be country / distributer specific parameters and register information. Doesn't seem to show anything useful
+
+### msgType = 0 and valType = 9
+This shows battery pack level details. Search for the key "batteryPackID" to show the pack number (a 20kwh system has 4 packs). You can see cell voltages, temperature probe values, and state of health. I don't know how to request specific packs, it seems to be random. Still, a 9 month old system is showing ~200 charge cycles and 100% SoH. I don't think I care too much, personally. I might change my mind over time.
