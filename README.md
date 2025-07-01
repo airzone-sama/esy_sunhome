@@ -943,6 +943,8 @@ I expect 2, 3, 4 will include Emergency Mode and Sell Mode.
 
 You can add this to your config.yaml to pull SoH information. n.b. I have 4 packs, and so you may need to adjust this for your installation if you have more or less packs. Battery information comes in randomly one pack at a time, so it will take time to populate.
 ```json
+mqtt:
+  sensor:
     - name: Battery Pack 1 SoH
       state_topic: "/APP/INVERTER_ID/NEWS"
       unit_of_measurement: "%"
