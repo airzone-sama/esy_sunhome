@@ -939,6 +939,75 @@ This seems to switch between the different modes. \
 5 = Battery Energy Management\
 I expect 2, 3, 4 will include Emergency Mode and Sell Mode. 
 
+## State of Health
+
+You can add this to your config.yaml to pull SoH information. n.b. I have 4 packs, and so you may need to adjust this for your installation if you have more or less packs. Battery information comes in randomly one pack at a time, so it will take time to populate.
+```json
+    - name: Battery Pack 1 SoH
+      state_topic: "/APP/INVERTER_ID/NEWS"
+      unit_of_measurement: "%"
+      unique_id: INVERTER_ID_SOH_1
+      value_template: >
+        {% if value_json.msgType == 0 and value_json.valType == 9 %}
+        {% set nested_json = ((value_json.val|replace("\\", ""))[1:(nested_json|length-1)])|from_json %}
+        {% if nested_json.dataList[0].dataList[0].val == "1" and nested_json.dataList[0].dataList[0].key == "batteryPackId" %}
+        {{ nested_json.dataList[0].dataList[73].val|int }}
+        {% endif %}       
+        {% endif %}       
+      device:
+        name: "Home Battery"
+        identifiers:
+          - "hb_INVERTER_ID"            
+    - name: Battery Pack 2 SoH
+      state_topic: "/APP/INVERTER_ID/NEWS"
+      unit_of_measurement: "%"
+      unique_id: INVERTER_ID_SOH_2
+      value_template: >
+        {% if value_json.msgType == 0 and value_json.valType == 9 %}
+        {% set nested_json = ((value_json.val|replace("\\", ""))[1:(nested_json|length-1)])|from_json %}
+        {% if nested_json.dataList[0].dataList[0].val == "2" and nested_json.dataList[0].dataList[0].key == "batteryPackId" %}
+        {{ nested_json.dataList[0].dataList[73].val|int }}
+        {% endif %}       
+        {% endif %}       
+      device:
+        name: "Home Battery"
+        identifiers:
+          - "hb_INVERTER_ID"       
+    - name: Battery Pack 3 SoH
+      state_topic: "/APP/INVERTER_ID/NEWS"
+      unit_of_measurement: "%"
+      unique_id: INVERTER_ID_SOH_3
+      value_template: >
+        {% if value_json.msgType == 0 and value_json.valType == 9 %}
+        {% set nested_json = ((value_json.val|replace("\\", ""))[1:(nested_json|length-1)])|from_json %}
+        {% if nested_json.dataList[0].dataList[0].val == "3" and nested_json.dataList[0].dataList[0].key == "batteryPackId" %}
+        {{ nested_json.dataList[0].dataList[73].val|int }}
+        {% endif %}       
+        {% endif %}       
+      device:
+        name: "Home Battery"
+        identifiers:
+          - "hb_INVERTER_ID"       
+    - name: Battery Pack 4 SoH
+      state_topic: "/APP/INVERTER_ID/NEWS"
+      unit_of_measurement: "%"
+      unique_id: INVERTER_ID_SOH_4
+      value_template: >
+        {% if value_json.msgType == 0 and value_json.valType == 9 %}
+        {% set nested_json = ((value_json.val|replace("\\", ""))[1:(nested_json|length-1)])|from_json %}
+        {% if nested_json.dataList[0].dataList[0].val == "4" and nested_json.dataList[0].dataList[0].key == "batteryPackId" %}
+        {{ nested_json.dataList[0].dataList[73].val|int }}
+        {% endif %}       
+        {% endif %}       
+      device:
+        name: "Home Battery"
+        identifiers:
+          - "hb_INVERTER_ID"
+```
+Substitute INVERTER_ID for your own inverter ID.
+
+Using a similar setup, you can pull cell voltages (these are 16s packs), min and max cell voltage, pack current, charge cycles, etc.
+
 ## Example screen shots
 
 ### Main console
