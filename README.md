@@ -933,11 +933,16 @@ Returns
 
 This seems to switch between the different modes. \
 1 = Normal\
-2 = ??\
-3 = ??\
-4 = ??\
+2 = Emergency Mode\
+3 = Electricity Sell Mode\
+4 = AI Mode\
 5 = Battery Energy Management\
-I expect 2, 3, 4 will include Emergency Mode and Sell Mode. 
+6 = Battery Priority Mode\
+7 = Grid Priority Mode\
+8 = AC Charging Off & Backup Mode\
+9 = PV Mode\
+10 = Forced Off-grid Mode\
+Thanks to Obby @ Whirlpool Forums for helping to fill out this list.  
 
 ## State of Health
 
