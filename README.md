@@ -2,6 +2,14 @@
 
 This is set up for a Linux based appliance install of HA. Only tested on an ESY Sunhome HM6.
 
+## Update Jan 2026
+
+There is a fundamental set of changes rolling out into the inverter firmware that will cause some breaking changes. If you experience this, I recommend checking out the other ESY Sun Home HA project here: https://github.com/branko-lazarevic/esysunhome
+
+Ultimately they are actively developing a fully featured HACS integration. 
+
+This material will remain for legacy documentation purposes.
+
 ## Pre-reqs
 
 You need some basic Linux skills and be reasonably OK at customising HA. You need the MQTT Integration installed. It is ideal to have a file editor and shell as part of your HA integration, but not necessary.
